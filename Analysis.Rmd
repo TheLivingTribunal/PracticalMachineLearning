@@ -1,0 +1,86 @@
+#Predicting the quality of Excercise by implementing a Machine Learning Algorithm
+
+##Executive Summary
+
+There are a number of new devices in the market such as Jawbone Up, Nike FuelBand, and Fitbit which enable us to collect a large amount of data about personal activity relatively inexpensively. These activity monitors are useful in ascertaining the extent to which a particular
+activity/excercise is performed, and this data can be used to improve individual excercise regimens. However, these monitors only quantify
+the various activities performed by the wearer and not the quality of the excercise/activity. In this analysis, we use use data from 
+accelerometers on the belt, forearm, arm, and dumbell of 6 participants who were asked to perform barbell lifts correctly and incorrectly in 5 different ways. We implement a simple Machine Learning Algorithm on this training dataset to obtain a model which we then fit onto the 
+test dataset to accurately determine whether an excercise was being performed correctly or not. In this analysis, we train the data
+using the Random Forest method and we fit the corresponding model on the test dataset to obtain a very low out-of-sample error rate of 0.6%.
+
+##Getting and Cleaning the Data
+
+The required datasets are downloaded if they are not already present in the current working directory and from those data, clean training and testing sets are obtained by removing columns with NA values
+
+```{r}
+if(!file.exists("pml-training.csv") & !file.exists("pml-testing.csv")) {
+  download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv", destfile="pml-training.csv", method="curl");
+  download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv", destfile="pml-testing.csv", method="curl");
+}
+trainRaw<-read.csv("pml-training.csv",na.strings=c("NA",""))
+testRaw<-read.csv("pml-testing.csv",na.strings=c("NA",""))
+NAIndex <- apply(trainRaw,2,function(x) {sum(is.na(x))}) 
+train1 <- trainRaw[,which(NAIndex == 0)]
+test <- testRaw[,which(NAIndex == 0)]
+```
+
+Using the caret package, we subset a Cross Validation dataset from the training dataset. Further, we remove the first 7 columns as they are irrelevant to this analysis.
+
+```{r,message=FALSE}
+library(caret)
+inTrain <- createDataPartition(train1$classe, p=0.75,list=FALSE)
+train <- train1[inTrain,]
+cross <- train1[-inTrain,]
+train<-train[,seq(8,60,1)]
+cross<-cross[,seq(8,60,1)]
+test<-test[,seq(8,60,1)]
+```
+
+
+Finally, we remove all the variables which have correlation of more than 90% with other variables. This is done to avoid duplication of data and to ensure that the model does not get obfuscated by highly correlated variables.
+
+```{r}
+high<-findCorrelation(cor(train[,c(1:52)]),cutoff<-0.9)
+train<-train[,-high]
+cross<-cross[,-high]
+test<-test[,-high]
+```
+
+##Training the Random Forest Model
+
+We fit a Random Forest model to the training dataset as follows
+
+```{r,message=FALSE}
+library(randomForest)
+model<-randomForest(classe ~ .,data=train)
+CVR<-confusionMatrix(cross$classe,predict(model,cross))
+CVRerror<-as.numeric((1-CVR$overall[1])*100)
+```
+
+**The out of bag error rate is estimated to be about 0.58%** with the following confusion matrix-
+
+```{r,echo=FALSE}
+model$confusion
+```
+
+The same confusion matrix may also be visualized as a Heatmap as shown -
+
+```{r}
+heatmap(as.matrix(CVR), Rowv=NA,Colv=NA, col = heat.colors(4),revC=T,main="Heatmap of Cross Validation Confusion Matrix",
+        xlab="Actual Classification",ylab="Predicted Classification")
+```
+
+##Results
+
+We Apply our trained model to the test dataset to make predictions on it -
+
+```{r}
+testResult<-predict(model,test)
+```
+
+**This model was applied to the test dataset and we obtained a prediction accuracy rate of 100%** (i.e., no prediction errors in the test set)
+              
+
+
+
